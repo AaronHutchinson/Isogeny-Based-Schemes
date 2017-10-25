@@ -1,0 +1,134 @@
+
+
+Velu := function(E1,Point)
+
+   a1 := aInvariants(E1)[1];
+   a2 := aInvariants(E1)[2];
+   a3 := aInvariants(E1)[3];
+   a4 := aInvariants(E1)[4];
+   a6 := aInvariants(E1)[5];
+   F := BaseRing(E1);
+
+   // STEP 1
+   Generator := Point;;
+   H := [ i gt 1 select Generator + Self(i-1) else Generator : i in [1..Order(Generator) ] ];
+   Subgroup := SequenceToSet(H);
+   Exclude(~H, Identity(E1));
+   C2 := [ ];
+   RPlus := [ ];
+   RMinus := [ ];
+
+   while H ne [ ] do
+      if 2*H[1][2] + a1*H[1][1] + a3 eq 0 then   // Check if 2-torsion poly is satisfied
+         Include(~C2,H[1]);
+         Exclude(~H,H[1]);
+      else
+         Include(~RPlus, H[1]);
+         Include(~RMinus,-H[1] );
+         Exclude(~H, -H[1]);
+         Exclude(~H, H[1]);
+      end if;
+   end while;
+   S := RPlus cat C2;
+
+   // STEP 2
+   g := AssociativeArray();
+   v := AssociativeArray();
+   u := AssociativeArray();
+   vee := F ! 0;
+   w := F ! 0;
+   for Q in S do
+      g[Q] := [ 3*Q[1]^2 + 2*a2*Q[1] + a4 - a1*Q[2] , -2*Q[2] - a1*Q[1] - a3 ];
+      if 2*Q[2] + a1*Q[1] + a3 eq 0 then
+         v[Q] := g[Q][1];
+      else
+         v[Q] := 2*g[Q][1] - a1*g[Q][2];
+      end if;
+      u[Q] := g[Q][2]^2;
+      vee := vee + v[Q];
+      w := w + u[Q] + Q[1]*v[Q];
+   end for;
+
+   // STEP 3
+   A1 := a1;
+   A2 := a2;
+   A3 := a3;
+   A4 := a4 - 5*vee;
+   A6 := a6 - (A1^2 + 4*A2)*vee - 7*w;
+   E2 := EllipticCurve([A1,A2,A3,A4,A6]);
+
+
+   // STEP 4
+   alpha := function(P)
+      value := P[1];
+      for Q in S do
+         value := value + v[Q] / (P[1] - Q[1]) + u[Q] / (P[1] - Q[1])^2;
+      end for;
+      return value;
+   end function;
+
+   beta := function(P)
+      value := P[2];
+      for Q in S do
+         value := value - u[Q]*(2*P[2] + a1*P[1] + a3) / (P[1] - Q[1])^3 - v[Q]*( a1*(P[1] - Q[1]) + P[2] - Q[2]) / (P[1] - Q[1])^2 - ( a1*u[Q] - g[Q][1]*g[Q][2]) / (P[1] - Q[1])^2;
+      end for;
+      return value;
+   end function;
+
+   computeImage := function(P)
+      if P in Subgroup then
+         return Identity(E2);
+      else
+         return E2 ! [ alpha(P), beta(P) ];
+      end if;
+   end function;
+
+
+   return E2, map< E1 -> E2 | x :-> computeImage(x) >;
+
+end function;
+
+
+////////////////////////////////////////////
+//                TESTING                 //
+////////////////////////////////////////////
+
+
+/*
+p := NextPrime(100);
+n := 2;
+q := p^n;
+F := GF(q);
+a1 := Random(F);
+a2 := Random(F);
+a3 := Random(F);
+a4 := Random(F);
+a6 := Random(F);
+
+while not IsEllipticCurve([a1,a2,a3,a4,a6]) do
+   a1 := Random(F);
+   a2 := Random(F);
+   a3 := Random(F);
+   a4 := Random(F);
+   a6 := Random(F);
+end while;
+
+printf "Initial curve found...\n";
+
+E1 := EllipticCurve([a1,a2,a3,a4,a6]);
+
+PA := Random(E1);
+QA := Random(E1);
+PB := Random(E1);
+QB := Random(E1);
+mA := Random([1..100]);
+mB := Random([1..100]);
+
+E2,P,Q := Velu(E1,PA,QA,PB,QB,mA,mB);
+
+printf "E1 = %o\nE2 = %o\n\n", E1, E2;
+printf "PA = %o\nQA = %o\nPB = %o\nQB = %o\n", PA,QA,PB,QB;
+printf "mA = %o, mB = %o\n\n", mA,mB;
+printf "phiA(PB) = %o\nphiA(QB) = %o\n", P,Q;
+
+*/

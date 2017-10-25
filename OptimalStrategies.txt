@@ -1,0 +1,38 @@
+OptimalCost := function(p,q,n)
+   costList := [RealField(10) ! 0];
+   indexList := [ [0] ];
+   for k := 1 to n-1 do
+      L := [ costList[i] + costList[k+1-i] + (k+1-i)*p + i*q : i in [1..k] ];
+      m := Min(L);
+      Append(~costList,m);
+      Append(~indexList, [i : i in [1..k] | L[i] eq m] );
+   end for;
+
+   return costList, indexList;
+
+end function;
+
+
+StrategiesNeeded := function(indexList,n)
+   needTheseStrategies := [n];          // Strategies with these number of leaves are needed
+   lookupList := [ n ];
+   while lookupList ne [] do
+      if Index(needTheseStrategies, indexList[lookupList[1]][1] ) eq 0 then
+         Append(~needTheseStrategies, indexList[lookupList[1]][1] );
+      end if;
+      if Index(needTheseStrategies, lookupList[1] - indexList[lookupList[1]][1] ) eq 0 then
+         Append(~needTheseStrategies, lookupList[1] - indexList[lookupList[1]][1] );
+      end if;
+      if (Index(lookupList, indexList[lookupList[1]][1]) eq 0) and (indexList[lookupList[1]][1] ne 1) th\
+en
+         Append(~lookupList, indexList[lookupList[1]][1]);
+      end if;
+      if (Index(lookupList, lookupList[1] - indexList[lookupList[1]][1]) eq 0) and (lookupList[1] - inde\
+xList[lookupList[1]][1] ne 1) then
+         Append(~lookupList, lookupList[1] - indexList[lookupList[1]][1]);
+      end if;
+      Remove(~lookupList,1);
+   end while;
+
+   return needTheseStrategies;
+end function;

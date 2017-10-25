@@ -1,0 +1,150 @@
+
+load "OptimalStrategies.txt";
+load "VeluReturnMap.txt";
+
+
+//////////////////////////
+//   Jao Key Exchange   //
+//////////////////////////
+
+DH := function( E0, e, ell, P )
+   
+   costList,indexList := OptimalCost( RealField(10) ! 1 , RealField(10) ! 1, e);
+
+   graphPoints := AssociativeArray();		// Stores the graph points associated to each binary path
+   graphPoints[ [555] ] := [555];		// Don't know how to tell Magma the proper universe...
+   graphPoints[ [] ] := [* *];			// Empty path corresponds to root of strategy
+   isogenies := [* 0 : i in [1..e]  *];		// List to hold the computed isogenies
+   curves := [* E0 *];
+   leaves := [* *];
+
+
+   for i := 1 to e do      
+
+      currentLeaf := i;
+      currentN := e;		      // Tracks number of leafs in current subtree
+      R := P;  	                      // Point pushed through the tree
+      isogCounter := 0;		      // Keeps track of the "curve level" we're on in the strategy
+      pathString := [];		      // Denotes the path taken through the branches of the srategy
+      		    		      //   0 denotes taking a left branch, 1 denotes taking a right branch
+
+      while currentN ne 1 do              // While we haven't reached the ith leaf
+         if not IsDefined(graphPoints, pathString) then	      	   // Initialize graphPoints node
+	    graphPoints[pathString] := [* *];
+	 end if;
+	 
+         if currentLeaf le indexList[currentN][1] then             // If leaf is in left branch
+	    if IsDefined( graphPoints[pathString] , 1 ) then	   // Check if we've already computed pt
+	       R := graphPoints[pathString][1];
+	    else						   // If not, compute it with ell*
+	       for j := 1 to currentN - indexList[currentN][1] do
+	          R := ell*R;
+	       end for;
+	       graphPoints[pathString][1] := R;			   // Store the computed point
+	    end if;
+	    currentN := indexList[currentN][1];			   // Update n for new subtree
+	    Append(~pathString,0);				   // Update path taken in strategy
+
+	 else							   // If leaf is in right branch
+	    if IsDefined( graphPoints[pathString], 2 ) then	   // Check if we've already computed pt
+	       R := graphPoints[pathString][2];
+	    else						   // If not, compute it with isog eval
+	       for j := 1 to indexList[currentN][1] do
+	          R := isogenies[isogCounter + j](R);
+	       end for;
+	       graphPoints[pathString][2] := R;			   // Store the computed point
+	    end if;
+	    isogCounter +:= indexList[currentN][1];		   // Update isogeny counter since we've moved to a new curve		
+	    currentLeaf := currentLeaf - indexList[currentN][1];   // The leaf number we're looking for is changed since we've taken a right branch
+	    currentN := currentN - indexList[currentN][1];	   // Update n for new subtree
+	    Append(~pathString,1); 				   // Update path taken in strategy
+   	 end if;
+      end while;
+
+      leaves[i] := R;
+      curves[i+1], isogenies[i] := Velu(curves[i], leaves[i]);
+
+   end for;
+   
+   return indexList,curves, isogenies, leaves;
+
+end function;
+
+
+
+
+
+
+
+////////////////////////////////////////////
+//                TESTING                 //
+////////////////////////////////////////////
+
+"";
+ellA := 2;
+ellB := 3;
+eA := 63;
+eB := 41;
+f := 11;
+
+p := ellA^eA * ellB^eB * f - 1;
+
+PolyRng<X> := PolynomialRing(GF(p));
+Fp<i> := ext< GF(p) | X^2 + 1 >;
+E := EllipticCurve([Fp ! 1,0]);
+
+PA := E ! [ 2374093068336250774107936421407893885897*i + 2524646701852396349308425328218203569693 , 1944869260414574206229153243510104781725*i + 1309099413211767078055232768460483417201, 1];
+PB := E ! [ 1556716033657530876728525059284431761206*i + 1747407329595165241335131647929866065215, 3456956202852028835529419995475915388483*i + 1975912874247458572654720717155755005566];
+
+QA := E ! [ - PA[1] , i * PA[2] ];
+QB := E ! [ - PB[1] , i * PB[2] ];
+
+
+mA := 2575042839726612324;
+nA := 8801426132580632841;
+mB := 4558164392438856871;
+nB := 20473135767366569910;
+
+
+RAR1 := mA*PA + nA*QA;
+RBR1 := mB*PB + nB*QB;
+
+"-------------- Round 1 --------------";
+
+indexListAR1,curvesAR1, isogeniesAR1, leavesAR1 := DH(E,eA,ellA,RAR1);
+compAR1 := isogeniesAR1[1];
+for i := 2 to #isogeniesAR1 do
+   compAR1 := compAR1*isogeniesAR1[i];
+end for;
+"Alice done.";
+
+
+indexListBR1,curvesBR1, isogeniesBR1, leavesBR1 := DH(E,eB,ellB,RBR1);
+compBR1 := isogeniesBR1[1];
+for i := 2 to #isogeniesBR1 do
+   compBR1 := compBR1*isogeniesBR1[i];
+end for;
+"Bob done.";
+
+"-------------- Round 2 --------------";
+
+EA := curvesBR1[#curvesBR1];
+EB := curvesAR1[#curvesAR1];
+
+RAR2 := mA*compBR1(PA) + nA*compBR1(QA);
+RBR2 := mB*compAR1(PB) + nB*compAR1(QB);
+
+
+indexListAR2,curvesAR2, isogeniesAR2, leavesAR2 := DH(EA,eA,ellA,RAR2);
+"Alice done.";
+
+indexListBR2,curvesBR2, isogeniesBR2, leavesBR2 := DH(EB,eB,ellB,RBR2);
+"Bob done.";
+
+"------- Key exchange complete -------";
+
+printf "j(E_AB): %o\n", jInvariant(curvesAR2[#curvesAR2]);
+printf "j(E_BA): %o\n", jInvariant(curvesBR2[#curvesBR2]);
+
+printf "Equal? %o\n", jInvariant(curvesAR2[#curvesAR2]) eq jInvariant(curvesBR2[#curvesBR2]);
+printf "Time taken: %o", Cputime();
